@@ -3,758 +3,841 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>QR Code Scanner - Store Data toin Google Sheets</title>
+    <title>QR Scanner → Google Sheets (Auto-Refresh)</title>
+    <!-- jsQR for decoding -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: #0b1120;
             min-height: 100vh;
             padding: 20px;
+            color: #e2e8f0;
         }
-        
+
         .container {
-            max-width: 1200px;
+            max-width: 800px;
             margin: 0 auto;
         }
-        
+
         .header {
             text-align: center;
-            color: white;
-            margin-bottom: 30px;
+            margin-bottom: 24px;
         }
-        
+
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 1.9rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, #a5f3fc, #818cf8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
         }
-        
+
         .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 6px;
         }
-        
-        .main-card {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            margin-bottom: 30px;
+
+        .card {
+            background: #1e2937;
+            border-radius: 32px;
+            padding: 24px;
+            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.5);
+            margin-bottom: 24px;
+            border: 1px solid #334155;
         }
-        
-        .scanner-section {
-            text-align: center;
-        }
-        
-        .video-container {
+
+        .video-wrapper {
             position: relative;
             width: 100%;
-            max-width: 640px;
-            margin: 0 auto 20px;
-            border-radius: 15px;
+            max-width: 560px;
+            margin: 0 auto;
+            border-radius: 24px;
             overflow: hidden;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
             background: #000;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
         }
-        
+
         #video {
             width: 100%;
             height: auto;
-            background: #000;
             display: block;
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
         }
-        
+
         #canvas {
             display: none;
         }
-        
-        .scan-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-        
+
         .scan-frame {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            top: 15%;
+            left: 10%;
             width: 80%;
-            height: 80%;
-            border: 3px solid #00ff00;
-            border-radius: 10px;
-            box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
-            animation: pulse 2s infinite;
+            height: 70%;
+            border: 2px solid #4ade80;
+            border-radius: 20px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+            pointer-events: none;
         }
-        
+
         .scan-line {
             position: absolute;
             top: 0;
-            left: 0;
-            width: 100%;
+            left: 10%;
+            width: 80%;
             height: 2px;
-            background: linear-gradient(90deg, transparent, #00ff00, transparent);
-            animation: scan 2s linear infinite;
+            background: linear-gradient(90deg, transparent, #4ade80, #22d3ee, transparent);
+            animation: scanMove 1.8s ease-in-out infinite;
+            pointer-events: none;
+            border-radius: 2px;
         }
-        
-        @keyframes pulse {
-            0%, 100% { border-color: #00ff00; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); }
-            50% { border-color: #ffff00; box-shadow: 0 0 0 9999px rgba(0,0,0,0.3); }
+
+        @keyframes scanMove {
+            0% { top: 15%; }
+            100% { top: 85%; }
         }
-        
-        @keyframes scan {
-            0% { top: 0; }
-            100% { top: 100%; }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 12px;
+            margin: 24px 0 10px;
         }
-        
-        .controls {
-            margin-top: 20px;
-        }
-        
+
         button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #2d3a4e;
             border: none;
-            padding: 12px 30px;
-            font-size: 16px;
-            border-radius: 25px;
+            color: white;
+            font-weight: 500;
+            padding: 10px 22px;
+            border-radius: 60px;
+            font-size: 0.9rem;
             cursor: pointer;
-            margin: 5px;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
-        
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        
+
         button:active {
-            transform: translateY(0);
+            transform: scale(0.96);
         }
-        
+
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
-        
+
+        .btn-primary {
+            background: #3b82f6;
+            box-shadow: 0 2px 6px rgba(59,130,246,0.3);
+        }
+
         .btn-danger {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            background: #dc2626;
         }
-        
-        .btn-success {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        }
-        
+
         .btn-warning {
-            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            background: #ea580c;
         }
-        
-        .result-section {
-            margin-top: 30px;
+
+        .btn-secondary {
+            background: #475569;
+        }
+
+        .result-panel {
+            background: #0f172a;
+            border-radius: 24px;
             padding: 20px;
-            background: #f8f9fa;
-            border-radius: 15px;
+            margin-top: 20px;
+            border-left: 4px solid #3b82f6;
         }
-        
-        .result-data {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 10px;
-            border-left: 4px solid #667eea;
-        }
-        
-        .result-data p {
-            margin: 8px 0;
-            word-break: break-all;
-        }
-        
-        .result-data strong {
-            color: #667eea;
-        }
-        
-        .status {
-            padding: 10px;
-            border-radius: 8px;
-            margin-top: 15px;
-            text-align: center;
-            animation: slideIn 0.3s ease;
-        }
-        
-        @keyframes slideIn {
-            from {
-                transform: translateY(-20px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-        
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .status.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-        
-        .status.warning {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeeba;
-        }
-        
-        .stats {
+
+        .result-title {
+            font-weight: 600;
+            margin-bottom: 12px;
+            font-size: 1.1rem;
             display: flex;
-            justify-content: space-around;
-            margin-top: 20px;
-            padding: 15px;
-            background: white;
-            border-radius: 15px;
+            align-items: center;
+            gap: 8px;
         }
-        
-        .stat-card {
-            text-align: center;
-        }
-        
-        .stat-number {
-            font-size: 2em;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .stat-label {
-            color: #666;
-            margin-top: 5px;
-        }
-        
-        .manual-input {
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 2px solid #e0e0e0;
-        }
-        
-        .manual-input h3 {
-            margin-bottom: 15px;
-            color: #333;
-        }
-        
-        textarea {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
+
+        .scanned-data {
+            background: #111827;
+            padding: 14px;
+            border-radius: 20px;
             font-family: monospace;
-            resize: vertical;
+            font-size: 0.85rem;
+            word-break: break-all;
+            margin: 12px 0;
+            border: 1px solid #2d3a4e;
         }
-        
-        .duplicate-badge {
+
+        .info-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 8px 0;
+            font-size: 0.9rem;
+        }
+
+        .info-label {
+            font-weight: 600;
+            min-width: 90px;
+            color: #94a3b8;
+        }
+
+        .badge {
             display: inline-block;
-            background: #ffc107;
-            color: #856404;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-size: 12px;
+            background: #facc15;
+            color: #0f172a;
+            font-size: 0.7rem;
             font-weight: bold;
+            padding: 2px 10px;
+            border-radius: 30px;
             margin-left: 10px;
         }
-        
-        @media (max-width: 768px) {
-            .header h1 { font-size: 1.8em; }
-            .main-card { padding: 20px; }
-            .scan-frame { width: 90%; height: 70%; }
+
+        .status {
+            margin-top: 16px;
+            padding: 10px 14px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        .status-success {
+            background: #14532d;
+            color: #bbf7d0;
+            border-left: 3px solid #4ade80;
+        }
+
+        .status-error {
+            background: #7f1a1a;
+            color: #fecaca;
+            border-left: 3px solid #f87171;
+        }
+
+        .status-info {
+            background: #1e3a5f;
+            color: #b9d8ff;
+        }
+
+        .status-warning {
+            background: #713f12;
+            color: #fde68a;
+        }
+
+        .stats-row {
+            display: flex;
+            gap: 16px;
+            justify-content: space-between;
+            margin: 16px 0 0;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: #0f172a;
+            flex: 1;
+            text-align: center;
+            padding: 12px 8px;
+            border-radius: 24px;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 800;
+            color: #38bdf8;
+        }
+
+        .manual-area {
+            margin-top: 24px;
+            border-top: 1px solid #334155;
+            padding-top: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            color: #e2e8f0;
+            font-family: monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .small-note {
+            font-size: 0.7rem;
+            color: #6c86a3;
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        @media (max-width: 550px) {
+            body { padding: 12px; }
+            .card { padding: 18px; }
+            button { padding: 8px 16px; font-size: 0.8rem; }
+            .stat-number { font-size: 1.5rem; }
         }
         
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
+        /* Refresh toast message */
+        .refresh-toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #0f172a;
+            backdrop-filter: blur(12px);
+            border: 1px solid #4ade80;
+            padding: 12px 24px;
+            border-radius: 60px;
+            color: #bbf7d0;
+            font-weight: 500;
+            font-size: 0.9rem;
+            z-index: 1000;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5);
+            animation: fadeOutUp 2s ease forwards;
+            pointer-events: none;
         }
         
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .recent-scans {
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        
-        .scan-history-item {
-            padding: 8px;
-            border-bottom: 1px solid #e0e0e0;
-            font-size: 12px;
-        }
-        
-        .scan-history-item .timestamp {
-            color: #999;
-            font-size: 10px;
+        @keyframes fadeOutUp {
+            0% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            70% { opacity: 1; }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-30px); visibility: hidden; }
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📱 QR Code Scanner</h1>
-            <p>Scan QR codes to automatically store data in Google Sheets</p>
+<div class="container">
+    <div class="header">
+        <h1>📷 QR → Sheets</h1>
+        <p>Scan & store automatically | Auto-refresh once after each successful save</p>
+    </div>
+
+    <div class="card">
+        <div class="video-wrapper">
+            <video id="video" playsinline autoplay muted></video>
+            <canvas id="canvas"></canvas>
+            <div class="scan-frame"></div>
+            <div class="scan-line"></div>
         </div>
-        
-        <div class="main-card">
-            <div class="scanner-section">
-                <div class="video-container">
-                    <video id="video" playsinline></video>
-                    <canvas id="canvas"></canvas>
-                    <div class="scan-overlay">
-                        <div class="scan-frame"></div>
-                        <div class="scan-line"></div>
-                    </div>
-                </div>
-                
-                <div class="controls">
-                    <button id="startBtn" class="btn-success" onclick="startScanner()">▶ Start Scanner</button>
-                    <button id="stopBtn" class="btn-danger" onclick="stopScanner()" disabled>⏹ Stop Scanner</button>
-                    <button onclick="clearHistory()" class="btn-warning">🗑 Clear History</button>
-                </div>
+
+        <div class="button-group">
+            <button id="startBtn" class="btn-primary">▶ Start Camera</button>
+            <button id="stopBtn" class="btn-danger" disabled>⏹ Stop</button>
+            <button id="clearHistoryBtn" class="btn-warning">🗑 Clear history</button>
+        </div>
+
+        <div class="result-panel">
+            <div class="result-title">
+                📋 Last scanned info
             </div>
-            
-            <div class="result-section">
-                <h3>📊 Last Scanned Data</h3>
-                <div id="result" class="result-data">
-                    <p style="color: #999;">No data scanned yet...</p>
-                </div>
-                <div id="status"></div>
+            <div id="resultArea">
+                <div class="scanned-data" style="color:#7c8aa0;">— No scan yet —</div>
             </div>
-            
-            <div class="stats">
+            <div id="statusMessage"></div>
+
+            <div class="stats-row">
                 <div class="stat-card">
-                    <div class="stat-number" id="recordCount">0</div>
-                    <div class="stat-label">Total Records in Sheet</div>
+                    <div class="stat-number" id="recordCount">—</div>
+                    <div>Total in sheet</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" id="uniqueCount">0</div>
-                    <div class="stat-label">Unique Scans Today</div>
+                    <div>Unique today</div>
                 </div>
-            </div>
-            
-            <div class="manual-input">
-                <h3>✏️ Manual QR Data Entry</h3>
-                <textarea id="manualData" rows="3" placeholder="Enter QR data manually (Format: Name|Vendor|Designation or JSON: {&quot;name&quot;:&quot;John&quot;,&quot;vendor&quot;:&quot;ABC Corp&quot;,&quot;designation&quot;:&quot;Manager&quot;})"></textarea>
-                <button onclick="saveManualData()" style="margin-top: 10px;">💾 Save Manually</button>
-                <button onclick="testConnection()" style="margin-top: 10px; background: #6c757d;">🔌 Test Connection</button>
-                <button onclick="loadRecordCount()" style="margin-top: 10px; background: #28a745;">📊 Refresh Stats</button>
-            </div>
-            
-            <div class="recent-scans" id="recentScans" style="display: none;">
-                <h3>📜 Recent Scan History</h3>
-                <div id="scanHistory"></div>
             </div>
         </div>
+
+        <div class="manual-area">
+            <label style="font-weight:500;">✏️ Manual QR data</label>
+            <textarea id="manualData" rows="2" placeholder="Paste QR content (JSON or pipe format: Name|Vendor|Designation)"></textarea>
+            <div class="button-group" style="margin-top: 12px; justify-content: flex-start;">
+                <button id="saveManualBtn" class="btn-primary">💾 Save to sheet</button>
+                <button id="testConnectionBtn" class="btn-secondary">🔌 Test connection</button>
+                <button id="refreshStatsBtn" class="btn-secondary">🔄 Refresh stats</button>
+            </div>
+            <div class="small-note">Supports JSON {name, vendor, designation} or "Name|Vendor|Designation"</div>
+        </div>
     </div>
+</div>
+
+<script>
+    // ======================== CONFIGURATION ========================
+    // REPLACE with your Google Apps Script Web App URL (must support POST & GET actions)
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxHea5T5OR4LJR9POeDKjcb2Mo0JbCHEf20QDdHQ6uuybcIjWsS6jxvZG_kaRbTIikc5Q/exec';
     
-    <script>
-        // ==================== CONFIGURATION ====================
-        // SET YOUR GOOGLE APPS SCRIPT WEB APP URL HERE:
-        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxHea5T5OR4LJR9POeDKjcb2Mo0JbCHEf20QDdHQ6uuybcIjWsS6jxvZG_kaRbTIikc5Q/exec';
-        // Replace the above URL with your actual deployed Apps Script URL
-        // ======================================================
-        
-        let video = document.getElementById('video');
-        let canvas = document.getElementById('canvas');
-        let canvasContext = canvas.getContext('2d');
-        let scanning = false;
-        let animationId = null;
-        
-        // Duplicate detection variables
-        let scannedHashes = new Set();
-        let recentScans = [];
-        let lastScanTime = 0;
-        const DUPLICATE_WINDOW_MS = 5000; // 5 seconds window for duplicate detection
-        const SCAN_COOLDOWN_MS = 2000; // 2 seconds cooldown between scans
-        
-        // Load existing history from localStorage
-        function loadHistory() {
-            const saved = localStorage.getItem('qrScanHistory');
-            if (saved) {
-                try {
-                    recentScans = JSON.parse(saved);
-                    updateHistoryDisplay();
-                } catch(e) {}
-            }
+    // ---------- DOM elements ----------
+    const videoEl = document.getElementById('video');
+    const canvasEl = document.getElementById('canvas');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+    const saveManualBtn = document.getElementById('saveManualBtn');
+    const testConnectionBtn = document.getElementById('testConnectionBtn');
+    const refreshStatsBtn = document.getElementById('refreshStatsBtn');
+    const resultAreaDiv = document.getElementById('resultArea');
+    const statusDiv = document.getElementById('statusMessage');
+    const recordCountSpan = document.getElementById('recordCount');
+    const uniqueCountSpan = document.getElementById('uniqueCount');
+    const manualDataInput = document.getElementById('manualData');
+
+    // ---------- Auto-refresh flag: refresh only once after a successful save ----------
+    let pendingRefreshOnce = false;       // prevents multiple refresh requests
+    let isRefreshing = false;             // avoid recursion on page reload
+    
+    // ---------- Scanner state (camera stays ON after save) ----------
+    let scanningActive = false;
+    let animationFrameId = null;
+    let canProcessScan = true;
+    let lastScanTimestamp = 0;
+    const SCAN_COOLDOWN_MS = 1800;
+
+    // duplicate management
+    let scannedHashesSet = new Set();
+    const DUPLICATE_WINDOW_MS = 6000;
+
+    // history for unique today counter
+    let scanHistoryList = [];
+    const MAX_HISTORY = 40;
+
+    // Helper: simple hash
+    function simpleHash(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash |= 0;
         }
-        
-        // Save history to localStorage
-        function saveHistory() {
-            localStorage.setItem('qrScanHistory', JSON.stringify(recentScans.slice(0, 50))); // Keep last 50
-        }
-        
-        // Clear history
-        function clearHistory() {
-            recentScans = [];
-            scannedHashes.clear();
-            saveHistory();
-            updateHistoryDisplay();
-            showStatus('Scan history cleared!', 'info');
-            document.getElementById('recentScans').style.display = 'none';
-        }
-        
-        // Update history display
-        function updateHistoryDisplay() {
-            const historyDiv = document.getElementById('scanHistory');
-            if (recentScans.length === 0) {
-                document.getElementById('recentScans').style.display = 'none';
-                return;
-            }
-            
-            document.getElementById('recentScans').style.display = 'block';
-            historyDiv.innerHTML = recentScans.map(scan => `
-                <div class="scan-history-item">
-                    <strong>${escapeHtml(scan.name || scan.raw.substring(0, 30))}</strong>
-                    <div class="timestamp">${scan.timestamp} ${scan.duplicate ? '⚠️ Duplicate' : '✅ Saved'}</div>
-                </div>
-            `).join('');
-            
-            // Update unique count for today
-            const today = new Date().toDateString();
-            const todayUnique = recentScans.filter(s => 
-                s.timestamp.includes(today) && !s.duplicate
-            ).length;
-            document.getElementById('uniqueCount').textContent = todayUnique;
-        }
-        
-        // Check if QR code is duplicate
-        function isDuplicate(qrData) {
-            const now = Date.now();
-            const hash = simpleHash(qrData);
-            
-            // Check if same hash was scanned within duplicate window
-            if (scannedHashes.has(hash)) {
-                return true;
-            }
-            
-            // Add to scanned hashes with expiry
-            scannedHashes.add(hash);
+        return hash.toString();
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+    
+    // Show toast for refresh info
+    function showRefreshToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'refresh-toast';
+        toast.innerText = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 2500);
+    }
+
+    function setStatusMessage(msg, type = 'info') {
+        let typeClass = 'status-info';
+        if (type === 'success') typeClass = 'status-success';
+        if (type === 'error') typeClass = 'status-error';
+        if (type === 'warning') typeClass = 'status-warning';
+        statusDiv.innerHTML = `<div class="status ${typeClass}">${escapeHtml(msg)}</div>`;
+        if (type !== 'error') {
             setTimeout(() => {
-                scannedHashes.delete(hash);
-            }, DUPLICATE_WINDOW_MS);
-            
+                if (statusDiv.innerHTML.includes(msg)) {
+                    statusDiv.innerHTML = '';
+                }
+            }, 4500);
+        }
+    }
+
+    // Parse QR: JSON or pipe format
+    function parseQRData(rawData) {
+        let name = '', vendor = '', designation = '';
+        try {
+            const json = JSON.parse(rawData);
+            name = json.name || json.Name || '';
+            vendor = json.vendor || json.Vendor || '';
+            designation = json.designation || json.Designation || '';
+        } catch(e) {
+            const parts = rawData.split('|');
+            if (parts.length >= 3) {
+                name = parts[0].trim();
+                vendor = parts[1].trim();
+                designation = parts[2].trim();
+            } else if (parts.length === 2) {
+                name = parts[0].trim();
+                vendor = parts[1].trim();
+                designation = '—';
+            } else {
+                name = rawData.trim();
+                vendor = '—';
+                designation = '—';
+            }
+        }
+        return { name, vendor, designation };
+    }
+
+    function updateResultUI(rawData, isDuplicate = false) {
+        const parsed = parseQRData(rawData);
+        const dupBadge = isDuplicate ? '<span class="badge">⚠️ DUPLICATE (not saved)</span>' : '';
+        resultAreaDiv.innerHTML = `
+            <div class="scanned-data" style="margin-bottom: 8px;">📄 ${escapeHtml(rawData.length > 70 ? rawData.substring(0,70)+'…' : rawData)}</div>
+            <div class="info-row"><span class="info-label">👤 Name:</span> ${escapeHtml(parsed.name)} ${dupBadge}</div>
+            <div class="info-row"><span class="info-label">🏢 Vendor:</span> ${escapeHtml(parsed.vendor)}</div>
+            <div class="info-row"><span class="info-label">💼 Designation:</span> ${escapeHtml(parsed.designation)}</div>
+        `;
+    }
+
+    function addToLocalHistory(rawData, parsedObj, wasDuplicate) {
+        scanHistoryList.unshift({
+            raw: rawData,
+            name: parsedObj.name,
+            vendor: parsedObj.vendor,
+            designation: parsedObj.designation,
+            timestamp: new Date().toISOString(),
+            duplicate: wasDuplicate
+        });
+        if (scanHistoryList.length > MAX_HISTORY) scanHistoryList.pop();
+        const todayStr = new Date().toDateString();
+        const uniqueToday = scanHistoryList.filter(entry => {
+            const entryDate = new Date(entry.timestamp).toDateString();
+            return entryDate === todayStr && !entry.duplicate;
+        }).length;
+        uniqueCountSpan.innerText = uniqueToday;
+        try {
+            localStorage.setItem('qr_scan_history_light', JSON.stringify(scanHistoryList.slice(0, 30)));
+        } catch(e) {}
+    }
+
+    function loadHistoryFromStorage() {
+        try {
+            const stored = localStorage.getItem('qr_scan_history_light');
+            if (stored) {
+                const parsedHistory = JSON.parse(stored);
+                if (Array.isArray(parsedHistory)) {
+                    scanHistoryList = parsedHistory;
+                    const todayStr = new Date().toDateString();
+                    const uniqueToday = scanHistoryList.filter(entry => {
+                        const entryDate = new Date(entry.timestamp).toDateString();
+                        return entryDate === todayStr && !entry.duplicate;
+                    }).length;
+                    uniqueCountSpan.innerText = uniqueToday;
+                }
+            }
+        } catch(e) { }
+    }
+
+    function clearScanHistory() {
+        scanHistoryList = [];
+        scannedHashesSet.clear();
+        localStorage.removeItem('qr_scan_history_light');
+        uniqueCountSpan.innerText = '0';
+        setStatusMessage('History cleared', 'info');
+        resultAreaDiv.innerHTML = `<div class="scanned-data" style="color:#7c8aa0;">— No scan yet —</div>`;
+    }
+
+    function isDuplicateQR(rawData) {
+        const hash = simpleHash(rawData);
+        if (scannedHashesSet.has(hash)) return true;
+        scannedHashesSet.add(hash);
+        setTimeout(() => {
+            scannedHashesSet.delete(hash);
+        }, DUPLICATE_WINDOW_MS);
+        return false;
+    }
+
+    // ========== REFRESH PAGE ONCE AFTER SUCCESS ==========
+    // This function triggers a single page reload, but ensures camera restarts properly after reload.
+    // We store a flag in sessionStorage to avoid infinite loops and also to preserve camera intention.
+    function performOneTimeRefresh() {
+        if (isRefreshing) return;
+        if (pendingRefreshOnce) {
+            pendingRefreshOnce = false;
+            isRefreshing = true;
+            showRefreshToast("✅ Data saved! Refreshing page once...");
+            // small delay so the user sees the success message before reload
+            setTimeout(() => {
+                // Store a marker that we just saved, so after reload the camera can auto-start
+                sessionStorage.setItem('qr_auto_restart_camera', 'true');
+                window.location.reload();
+            }, 800);
+        }
+    }
+    
+    // After page loads, if we have auto-restart flag, start camera automatically
+    function autoStartCameraAfterRefresh() {
+        const shouldAutoStart = sessionStorage.getItem('qr_auto_restart_camera');
+        if (shouldAutoStart === 'true') {
+            sessionStorage.removeItem('qr_auto_restart_camera');
+            // Wait a bit for DOM to fully settle, then start camera
+            setTimeout(() => {
+                if (!scanningActive && videoEl && !videoEl.srcObject) {
+                    startScanner().catch(e => console.warn("auto-start error", e));
+                }
+            }, 500);
+        }
+    }
+    
+    // ========== SAVE TO GOOGLE SHEET with refresh flag ==========
+    async function saveToGoogleSheet(qrRawData) {
+        if (!WEB_APP_URL || WEB_APP_URL === 'YOUR_DEPLOYED_SCRIPT_URL' || WEB_APP_URL.includes('YOUR_SCRIPT_ID')) {
+            setStatusMessage('⚠️ Please set your Google Apps Script URL in WEB_APP_URL', 'error');
             return false;
         }
-        
-        // Simple hash function for QR data
-        function simpleHash(str) {
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) {
-                const char = str.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash;
+        setStatusMessage('Saving to Google Sheets...', 'info');
+        try {
+            // Using fetch with no-cors to send data; but we can't read response.
+            await fetch(WEB_APP_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ qrData: qrRawData })
+            });
+            setStatusMessage('✓ Saved successfully! Page will refresh once.', 'success');
+            
+            // Mark that we need a single page refresh after successful save
+            if (!pendingRefreshOnce) {
+                pendingRefreshOnce = true;
+                // Also schedule the actual refresh (after short delay to ensure all UI updates)
+                setTimeout(() => {
+                    performOneTimeRefresh();
+                }, 1200);
             }
-            return hash.toString();
+            
+            // Also try to update the total count via background fetch but not mandatory
+            setTimeout(() => fetchRecordCount(), 300);
+            return true;
+        } catch (err) {
+            console.warn(err);
+            setStatusMessage(`✗ Save error: ${err.message || 'Network issue'}`, 'error');
+            return false;
+        }
+    }
+
+    // fetch total in sheet (graceful)
+    async function fetchRecordCount() {
+        if (!WEB_APP_URL || WEB_APP_URL.includes('YOUR_SCRIPT')) {
+            recordCountSpan.innerText = '?';
+            return;
+        }
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const response = await fetch(`${WEB_APP_URL}?action=count`, { 
+                cache: 'no-store',
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data = await response.json();
+            let countValue = '—';
+            if (typeof data === 'number') countValue = data;
+            else if (data && typeof data === 'object') {
+                countValue = data.count !== undefined ? data.count : (data.total || data.rows || '—');
+            } else if (data !== undefined) countValue = data;
+            recordCountSpan.innerText = (countValue === '—' || countValue === undefined) ? '—' : countValue;
+        } catch (error) {
+            console.warn('Count fetch error:', error);
+            recordCountSpan.innerText = '—';
+        }
+    }
+
+    async function testConnection() {
+        if (!WEB_APP_URL || WEB_APP_URL.includes('YOUR_SCRIPT')) {
+            setStatusMessage('Please configure WEB_APP_URL first', 'error');
+            return;
+        }
+        setStatusMessage('Testing sheet connection...', 'info');
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 6000);
+            const resp = await fetch(`${WEB_APP_URL}?action=test`, { cache: 'no-store', signal: controller.signal });
+            clearTimeout(timeoutId);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            if (data && data.success === true) {
+                setStatusMessage(`✅ Connected! ${data.message || 'Sheet ready'}`, 'success');
+                await fetchRecordCount();
+            } else {
+                setStatusMessage(`⚠️ Response: ${data?.message || 'unexpected format'}`, 'warning');
+            }
+        } catch(err) {
+            setStatusMessage(`Connection failed: ${err.message}`, 'error');
+            recordCountSpan.innerText = '—';
+        }
+    }
+
+    // Core QR processing - camera keeps running, and if saved successfully => triggers refresh once
+    async function processQR(rawData, source = 'scan') {
+        if (!rawData || rawData.trim() === '') return;
+        const trimmed = rawData.trim();
+        const parsed = parseQRData(trimmed);
+        const duplicateFlag = isDuplicateQR(trimmed);
+        
+        updateResultUI(trimmed, duplicateFlag);
+        
+        if (duplicateFlag) {
+            setStatusMessage('Duplicate QR (within time window) - not saving', 'warning');
+            addToLocalHistory(trimmed, parsed, true);
+            return;
         }
         
-        // Add to scan history
-        function addToHistory(qrData, parsed, wasDuplicate, saved = false) {
-            const now = new Date();
-            recentScans.unshift({
-                raw: qrData,
-                name: parsed.name,
-                vendor: parsed.vendor,
-                designation: parsed.designation,
-                timestamp: now.toLocaleString(),
-                duplicate: wasDuplicate,
-                saved: saved
+        const saved = await saveToGoogleSheet(trimmed);
+        if (saved) {
+            addToLocalHistory(trimmed, parsed, false);
+            // Do not stop camera, refresh flag already set inside saveToGoogleSheet
+            // But we ensure no duplicate refresh by checking pendingRefreshOnce.
+        } else {
+            addToLocalHistory(trimmed, parsed, false);
+            setStatusMessage('Save failed, check connection', 'error');
+        }
+        // Camera continues scanning naturally
+    }
+
+    // ========== QR SCANNER ==========
+    let canvasContext = null;
+    function initCanvasContext() {
+        if (!canvasContext) {
+            canvasContext = canvasEl.getContext('2d');
+        }
+    }
+
+    async function startScanner() {
+        if (scanningActive) {
+            setStatusMessage('Camera already running', 'info');
+            return;
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+            videoEl.srcObject = stream;
+            videoEl.setAttribute('playsinline', '');
+            await videoEl.play();
+            scanningActive = true;
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            setStatusMessage('Camera active — scanning QR codes', 'success');
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animationFrameId = requestAnimationFrame(scanFrame);
+        } catch (err) {
+            console.error(err);
+            setStatusMessage('Camera error: permission denied or no camera', 'error');
+        }
+    }
+
+    function stopScanner() {
+        if (videoEl.srcObject) {
+            const tracks = videoEl.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            videoEl.srcObject = null;
+        }
+        scanningActive = false;
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        setStatusMessage('Scanner stopped', 'info');
+    }
+
+    function scanFrame() {
+        if (!scanningActive) return;
+        if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA && videoEl.videoWidth > 0 && videoEl.videoHeight > 0) {
+            canvasEl.width = videoEl.videoWidth;
+            canvasEl.height = videoEl.videoHeight;
+            if (!canvasContext) initCanvasContext();
+            canvasContext.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+            const imageData = canvasContext.getImageData(0, 0, canvasEl.width, canvasEl.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: "dontInvert",
             });
             
-            // Keep only last 50 scans
-            if (recentScans.length > 50) recentScans.pop();
-            saveHistory();
-            updateHistoryDisplay();
-        }
-        
-        // Start camera and scanner
-        async function startScanner() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' } 
+            const now = Date.now();
+            if (code && canProcessScan && (now - lastScanTimestamp) >= SCAN_COOLDOWN_MS) {
+                lastScanTimestamp = now;
+                canProcessScan = false;
+                const qrText = code.data;
+                processQR(qrText, 'scan').finally(() => {
+                    setTimeout(() => { canProcessScan = true; }, SCAN_COOLDOWN_MS);
                 });
-                video.srcObject = stream;
-                video.setAttribute('playsinline', true);
-                await video.play();
-                
-                scanning = true;
-                document.getElementById('startBtn').disabled = true;
-                document.getElementById('stopBtn').disabled = false;
-                
-                requestAnimationFrame(scan);
-                
-                showStatus('Scanner started. Position QR code in the frame.', 'info');
-            } catch (error) {
-                console.error('Camera error:', error);
-                showStatus('Unable to access camera. Please ensure camera permissions are granted.', 'error');
-            }
-        }
-        
-        // Stop scanner
-        function stopScanner() {
-            if (video.srcObject) {
-                const tracks = video.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
-                video.srcObject = null;
-            }
-            scanning = false;
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-                animationId = null;
-            }
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('stopBtn').disabled = true;
-            showStatus('Scanner stopped.', 'info');
-        }
-        
-        // Scan QR code from video frame
-        let canScan = true;
-        
-        function scan() {
-            if (!scanning) return;
-            
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
-                const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                    inversionAttempts: "dontInvert",
-                });
-                
-                if (code && canScan) {
-                    const now = Date.now();
-                    if (now - lastScanTime >= SCAN_COOLDOWN_MS) {
-                        lastScanTime = now;
-                        canScan = false;
-                        
-                        const qrData = code.data;
-                        const parsed = parseQRData(qrData);
-                        const duplicate = isDuplicate(qrData);
-                        
-                        displayResult(qrData, duplicate);
-                        
-                        if (duplicate) {
-                            showStatus('⚠️ Duplicate QR code detected! Not saving again.', 'warning');
-                            addToHistory(qrData, parsed, true, false);
-                            // Resume scanning after shorter cooldown for duplicates
-                            setTimeout(() => { canScan = true; }, 1000);
-                        } else {
-                            addToHistory(qrData, parsed, false, true);
-                            saveToSheet(qrData);
-                            // Longer cooldown after successful save
-                            setTimeout(() => { canScan = true; }, SCAN_COOLDOWN_MS);
-                        }
-                    }
-                } else if (!code) {
-                    // Reset canScan if no code detected for a while
-                    setTimeout(() => { canScan = true; }, 500);
+            } else if (!code) {
+                if (!canProcessScan && (now - lastScanTimestamp) > 1200) {
+                    canProcessScan = true;
                 }
             }
-            
-            animationId = requestAnimationFrame(scan);
+        }
+        animationFrameId = requestAnimationFrame(scanFrame);
+    }
+
+    async function handleManualSave() {
+        const rawManual = manualDataInput.value.trim();
+        if (!rawManual) {
+            setStatusMessage('Enter QR content first', 'warning');
+            return;
+        }
+        await processQR(rawManual, 'manual');
+        manualDataInput.value = '';
+    }
+
+    async function refreshStats() {
+        await fetchRecordCount();
+        const todayStr = new Date().toDateString();
+        const uniqueToday = scanHistoryList.filter(entry => {
+            const entryDate = new Date(entry.timestamp).toDateString();
+            return entryDate === todayStr && !entry.duplicate;
+        }).length;
+        uniqueCountSpan.innerText = uniqueToday;
+        setStatusMessage('Stats refreshed', 'info');
+    }
+
+    // ========== INIT ==========
+    function init() {
+        loadHistoryFromStorage();
+        fetchRecordCount().catch(() => { recordCountSpan.innerText = '—'; });
+        initCanvasContext();
+        
+        startBtn.addEventListener('click', startScanner);
+        stopBtn.addEventListener('click', stopScanner);
+        clearHistoryBtn.addEventListener('click', clearScanHistory);
+        saveManualBtn.addEventListener('click', handleManualSave);
+        testConnectionBtn.addEventListener('click', testConnection);
+        refreshStatsBtn.addEventListener('click', refreshStats);
+        
+        if (!WEB_APP_URL || WEB_APP_URL === 'YOUR_DEPLOYED_SCRIPT_URL' || WEB_APP_URL.includes('YOUR_SCRIPT_ID')) {
+            setStatusMessage('⚠️ Set your Google Apps Script URL in WEB_APP_URL variable', 'warning');
+        } else {
+            setStatusMessage('Ready → Start camera and scan QR codes (auto-refresh once after each save)', 'info');
         }
         
-        // Display scanned result
-        function displayResult(qrData, isDuplicate = false) {
-            let parsed = parseQRData(qrData);
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerHTML = `
-                <p><strong>📝 Raw Data:</strong></p>
-                <p style="background:#f0f0f0; padding:10px; border-radius:5px; font-family:monospace;">${escapeHtml(qrData)}</p>
-                <p><strong>👤 Name:</strong> ${escapeHtml(parsed.name)} ${isDuplicate ? '<span class="duplicate-badge">DUPLICATE</span>' : ''}</p>
-                <p><strong>🏢 Vendor:</strong> ${escapeHtml(parsed.vendor)}</p>
-                <p><strong>💼 Designation:</strong> ${escapeHtml(parsed.designation)}</p>
-            `;
+        // After initialization, check if we need to auto-start camera after a previous refresh
+        autoStartCameraAfterRefresh();
+    }
+
+    window.addEventListener('beforeunload', () => {
+        if (videoEl.srcObject) {
+            videoEl.srcObject.getTracks().forEach(t => t.stop());
         }
-        
-        // Parse QR data
-        function parseQRData(qrData) {
-            let name = '', vendor = '', designation = '';
-            
-            try {
-                const parsed = JSON.parse(qrData);
-                name = parsed.name || parsed.Name || '';
-                vendor = parsed.vendor || parsed.Vendor || '';
-                designation = parsed.designation || parsed.Designation || '';
-            } catch (e) {
-                const parts = qrData.split('|');
-                if (parts.length >= 3) {
-                    name = parts[0].trim();
-                    vendor = parts[1].trim();
-                    designation = parts[2].trim();
-                } else {
-                    name = qrData;
-                    vendor = 'N/A';
-                    designation = 'N/A';
-                }
-            }
-            
-            return { name, vendor, designation };
-        }
-        
-        // Save data to Google Sheet via POST request
-        async function saveToSheet(qrData) {
-            if (!WEB_APP_URL || WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
-                showStatus('⚠️ Please configure the WEB_APP_URL in the script!', 'error');
-                return;
-            }
-            
-            showStatus('Saving data to Google Sheet...', 'info');
-            
-            try {
-                const response = await fetch(WEB_APP_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ qrData: qrData })
-                });
-                
-                showStatus('✅ Data saved successfully!', 'success');
-                loadRecordCount();
-                
-            } catch (error) {
-                console.error('Save error:', error);
-                showStatus(`❌ Error: ${error.message}`, 'error');
-            }
-        }
-        
-        // Manual data entry with duplicate check
-        function saveManualData() {
-            const manualData = document.getElementById('manualData').value.trim();
-            if (!manualData) {
-                showStatus('Please enter QR data.', 'error');
-                return;
-            }
-            
-            const parsed = parseQRData(manualData);
-            const duplicate = isDuplicate(manualData);
-            
-            displayResult(manualData, duplicate);
-            
-            if (duplicate) {
-                showStatus('⚠️ Duplicate QR code detected! Not saving again.', 'warning');
-                addToHistory(manualData, parsed, true, false);
-            } else {
-                addToHistory(manualData, parsed, false, true);
-                saveToSheet(manualData);
-            }
-            
-            document.getElementById('manualData').value = '';
-        }
-        
-        // Test connection
-        async function testConnection() {
-            if (!WEB_APP_URL || WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
-                showStatus('⚠️ Please configure the WEB_APP_URL in the script!', 'error');
-                return;
-            }
-            
-            showStatus('Testing connection to Google Sheet...', 'info');
-            
-            try {
-                const response = await fetch(`${WEB_APP_URL}?action=test`);
-                const result = await response.json();
-                
-                if (result.success) {
-                    showStatus(`✅ ${result.message} (${result.rowCount} records)`, 'success');
-                    loadRecordCount();
-                } else {
-                    showStatus(`❌ ${result.message}`, 'error');
-                }
-            } catch (error) {
-                showStatus(`❌ Connection test failed: ${error.message}`, 'error');
-            }
-        }
-        
-        // Load total record count
-        async function loadRecordCount() {
-            if (!WEB_APP_URL || WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`${WEB_APP_URL}?action=count`);
-                const count = await response.json();
-                document.getElementById('recordCount').textContent = count;
-            } catch (error) {
-                console.error('Failed to load count:', error);
-            }
-        }
-        
-        // Show status message
-        function showStatus(message, type) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
-            
-            if (type !== 'error') {
-                setTimeout(() => {
-                    if (statusDiv.innerHTML.includes(message)) {
-                        statusDiv.innerHTML = '';
-                    }
-                }, 5000);
-            }
-        }
-        
-        // Helper function to escape HTML
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        // Initialize
-        window.addEventListener('load', function() {
-            loadHistory();
-            loadRecordCount();
-            
-            if (!WEB_APP_URL || WEB_APP_URL === 'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec') {
-                showStatus('⚠️ Please configure the WEB_APP_URL in the HTML script (line ~280)', 'warning');
-            } else {
-                showStatus('Ready! Click "Start Scanner" to begin scanning QR codes.', 'info');
-            }
-        });
-        
-        // Clean up
-        window.addEventListener('beforeunload', function() {
-            if (video.srcObject) {
-                const tracks = video.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
-            }
-        });
-    </script>
+    });
+    
+    init();
+</script>
 </body>
 </html>
